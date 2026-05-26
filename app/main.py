@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import json
 
 from openai import OpenAI
 
@@ -9,23 +10,35 @@ BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v
 
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("-p", required=True)
-    args = p.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", required=True)
+    parser.add_argument("filename", nargs='?')
+    args = parser.parse_args()
+
+    messages = [{"role": "user", "content": args.p}]
+    if args.filename:
+        messages.append({"role": "user", "content": args.filename})
 
     if not API_KEY:
         raise RuntimeError("OPENROUTER_API_KEY is not set")
 
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
+    def read_file(file_path):
+        with open(file_path, "r") as file:
+            content = file.read()
+            return content
+
+    TOOL_MAPPING = {"read": read_file}
+
     chat = client.chat.completions.create(
-        model="anthropic/claude-haiku-4.5",
-        messages=[{"role": "user", "content": args.p}],
+        model="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        messages=messages,
         tools=[
             {
                 "type": "function",
                 "function": {
-                    "name": "Read",
+                    "name": "read",
                     "description": "Read and return the contents of a file",
                     "parameters": {
                         "type": "object",
@@ -46,10 +59,19 @@ def main():
         raise RuntimeError("no choices in response")
 
     # You can use print statements as follows for debugging, they'll be visible when running tests.
-    print("Logs from your program will appear here!", file=sys.stderr)
+    # print("Logs from your program will appear here!", file=sys.stderr)
 
     # TODO: Uncomment the following line to pass the first stage
-    print(chat.choices[0].message.content)
+    response = False
+    for tool in chat.choices[0].message.tool_calls:
+        tool_name = tool.function.name
+        tool_args = json.loads(tool.function.arguments)
+        tool_response = TOOL_MAPPING[tool_name](**tool_args)
+        response = tool_response
+    if not response:
+        response = chat.choices[0].message.content
+
+    print(response)
 
 
 if __name__ == "__main__":
