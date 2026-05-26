@@ -32,7 +32,7 @@ def main():
     TOOL_MAPPING = {"read": read_file}
 
     chat = client.chat.completions.create(
-        model="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        model="anthropic/claude-haiku-4.5",
         messages=messages,
         tools=[
             {
