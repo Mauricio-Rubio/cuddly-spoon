@@ -63,7 +63,7 @@ def main():
 
     # TODO: Uncomment the following line to pass the first stage
     response = False
-    for tool in chat.choices[0].message.tool_calls:
+    for tool in chat.choices[0].message.tool_calls or []:
         tool_name = tool.function.name
         tool_args = json.loads(tool.function.arguments)
         tool_response = TOOL_MAPPING[tool_name](**tool_args)
