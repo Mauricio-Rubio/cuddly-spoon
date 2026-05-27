@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import json
+import subprocess
 
 from openai import OpenAI
 
@@ -34,7 +35,11 @@ def main():
             file.write(content)
             return content
 
-    TOOL_MAPPING = {"read": read_file, "write": write_file}
+    def bash_command(command):
+        result = subprocess.run(command.split(), capture_output=True, text=True)
+        return result.stdout or result.stderr
+
+    TOOL_MAPPING = {"read": read_file, "write": write_file, "bash": bash_command}
 
     while True:
         chat = client.chat.completions.create(
@@ -76,6 +81,23 @@ def main():
                                 },
                             },
                             "required": ["file_path", "content"],
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "bash",
+                        "description": "Execute a shell command",
+                        "parameters": {
+                            "type": "object",
+                            "required": ["command"],
+                            "properties": {
+                                "command": {
+                                    "type": "string",
+                                    "description": "The command to execute",
+                                }
+                            },
                         },
                     },
                 },
