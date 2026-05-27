@@ -29,7 +29,12 @@ def main():
             content = file.read()
             return content
 
-    TOOL_MAPPING = {"read": read_file}
+    def write_file(file_path, content):
+        with open(file_path, "w") as file:
+            file.write(content)
+            return content
+
+    TOOL_MAPPING = {"read": read_file, "write": write_file}
 
     while True:
         chat = client.chat.completions.create(
@@ -52,7 +57,28 @@ def main():
                             "required": ["file_path"],
                         },
                     },
-                }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "write",
+                        "description": "Write content to a file",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "file_path": {
+                                    "type": "string",
+                                    "description": "The path of the file to write to",
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "The content to write to the file",
+                                },
+                            },
+                            "required": ["file_path", "content"],
+                        },
+                    },
+                },
             ],
         )
 
@@ -62,8 +88,7 @@ def main():
         if response.tool_calls is None:
             print(response.content)
             break
-        # You can use print statements as follows for debugging, they'll be visible when running tests.
-        # print("Logs from your program will appear here!", file=sys.stderr)
+
         messages.append(response)
 
         # TODO: Uncomment the following line to pass the first stage
@@ -71,11 +96,13 @@ def main():
             tool_name = tool.function.name
             tool_args = json.loads(tool.function.arguments)
             tool_response = TOOL_MAPPING[tool_name](**tool_args)
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool.id,
-                "content": tool_response,
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "content": tool_response,
+                }
+            )
 
 
 if __name__ == "__main__":
