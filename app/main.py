@@ -59,12 +59,12 @@ def main():
         if not chat.choices or len(chat.choices) == 0:
             raise RuntimeError("no choices in response")
         response = chat.choices[0].message
-
         if response.tool_calls is None:
             print(response.content)
             break
         # You can use print statements as follows for debugging, they'll be visible when running tests.
         # print("Logs from your program will appear here!", file=sys.stderr)
+        messages.append(response)
 
         # TODO: Uncomment the following line to pass the first stage
         for tool in response.tool_calls or []:
