@@ -1,34 +1,75 @@
 [![progress-banner](https://backend.codecrafters.io/progress/claude-code/b4abc650-c2be-4bf8-a2fb-e873a916f892)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
-This is a starting point for Python solutions to the
-["Build Your own Claude Code" Challenge](https://codecrafters.io/challenges/claude-code).
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+![OpenRouter](https://img.shields.io/badge/API-OpenRouter-6366f1)
+![Model](https://img.shields.io/badge/model-claude--haiku--4.5-d97757)
+![uv](https://img.shields.io/badge/package%20manager-uv-purple)
 
-Claude Code is an AI coding assistant that uses Large Language Models (LLMs) to
-understand code and perform actions through tool calls. In this challenge,
-you'll build your own Claude Code from scratch by implementing an LLM-powered
-coding assistant.
+# Claude Code (my implementation)
 
-Along the way you'll learn about HTTP RESTful APIs, OpenAI-compatible tool
-calling, agent loop, and how to integrate multiple tools into an AI assistant.
+My first agent built on top of an LLM API. It's a from-scratch implementation of a coding assistant in the style of Claude Code: it takes a natural language prompt, decides what to do via tool calls, and executes real actions on the filesystem and shell.
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+Built as part of the [Build Your Own Claude Code](https://codecrafters.io/challenges/claude-code) challenge from CodeCrafters.
 
-# Passing the first stage
+## How it works
 
-The entry point for your `claude-code` implementation is in `app/main.py`. Study
-and uncomment the relevant code, and submit to pass the first stage:
+The agent runs an **agent loop**: it sends the conversation to the model, and if the model responds with `tool_calls`, the agent executes each tool, appends the results to the message history, and loops again. When the model responds with plain text (no tool calls), the loop terminates and the response is printed.
+
+Requests are sent to **OpenRouter** using the **OpenAI Python SDK** (OpenAI-compatible interface), targeting `anthropic/claude-haiku-4.5` as the underlying model.
+
+## Implemented tools
+
+The agent exposes three tools to the model via OpenAI-compatible function calling:
+
+- `read` — reads and returns the contents of a file.
+- `write` — writes content to a file (creates or overwrites).
+- `bash` — executes a shell command and returns its stdout (or stderr on failure).
+
+Each tool is declared with a JSON Schema and routed through a `TOOL_MAPPING` dictionary to the actual Python implementation.
+
+## What I learned along the way
+
+- **Agent loop mechanics**: structuring the `prompt → model response → tool execution → tool result → next turn` cycle, and knowing when to break out (no `tool_calls` in the response).
+- **OpenAI-compatible tool calling**: defining `tools` with JSON Schema, parsing `tool_calls` from the response, and appending `role: "tool"` messages with the matching `tool_call_id` so the model can read the results on the next turn.
+- **Stateless model, stateful conversation**: the API has no memory between calls, so the full message history (including assistant tool-call messages and tool result messages) must be sent on every request.
+- **Using OpenRouter as a proxy**: pointing the OpenAI SDK at `https://openrouter.ai/api/v1` and selecting `anthropic/claude-haiku-4.5` instead of an OpenAI model, with no other client changes.
+- **HTTP REST APIs**: working with auth headers, request/response shapes, and how `tool_calls` and tool result messages are structured.
+
+## Stack
+
+- Python 3.11+
+- [OpenAI Python SDK](https://github.com/openai/openai-python) (used against OpenRouter)
+- [OpenRouter](https://openrouter.ai/) → `anthropic/claude-haiku-4.5`
+- `uv` for package and environment management
+
+## Setup
+
+Requires `uv` installed locally.
+
+Set your OpenRouter API key:
+
+```sh
+export OPENROUTER_API_KEY="sk-or-..."
+# optional: override the default base URL
+export OPENROUTER_BASE_URL="https://openrouter.ai/api/v1"
+```
+
+## Usage
+
+The entry point is `app/main.py`. Run via the provided script:
+
+```sh
+./your_program.sh -p "your prompt here"
+```
+
+You can optionally pass a filename as a positional argument, which gets added as a second user message:
+
+```sh
+./your_program.sh -p "explain what this file does" app/main.py
+```
+
+## CodeCrafters submission
 
 ```sh
 codecrafters submit
 ```
-
-# Stage 2 & beyond
-
-Note: This section is for stages 2 and beyond.
-
-1. Ensure you have `uv` installed locally.
-2. Run `./your_program.sh` to run your program, which is implemented in
-   `app/main.py`.
-3. Run `codecrafters submit` to submit your solution to CodeCrafters. Test
-   output will be streamed to your terminal.
