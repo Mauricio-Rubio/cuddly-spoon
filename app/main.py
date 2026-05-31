@@ -1,6 +1,8 @@
 import argparse
 import os
 import json
+import re
+import glob
 import subprocess
 
 from openai import OpenAI
@@ -38,7 +40,53 @@ def main():
         result = subprocess.run(command.split(), capture_output=True, text=True)
         return result.stdout or result.stderr
 
-    TOOL_MAPPING = {"read": read_file, "write": write_file, "bash": bash_command}
+    def edit_file(file_path, old_string, new_string):
+        with open(file_path, "r") as file:
+            content = file.read()
+        content = content.replace(old_string, new_string)
+        with open(file_path, "w") as file:
+            file.write(content)
+        return content
+
+    def grep_content(pattern, path="."):
+        matches = []
+        for root, _, files in os.walk(path):
+            for name in files:
+                fp = os.path.join(root, name)
+                try:
+                    with open(fp) as f:
+                        for i, line in enumerate(f, 1):
+                            if re.search(pattern, line):
+                                matches.append(f"{fp}:{i}:{line.rstrip()}")
+                except (UnicodeDecodeError, OSError):
+                    continue
+        return "\n".join(matches) or "No matches"
+
+    def glob_files(pattern):
+        return "\n".join(glob.glob(pattern, recursive=True)) or "No matches"
+
+    def list_directory(path="."):
+        return "\n".join(sorted(os.listdir(path))) or "(empty)"
+
+    def delete_file(file_path):
+        os.remove(file_path)
+        return f"Deleted {file_path}"
+
+    def make_directory(path):
+        os.makedirs(path, exist_ok=True)
+        return f"Created {path}"
+
+    TOOL_MAPPING = {
+        "read": read_file,
+        "write": write_file,
+        "bash": bash_command,
+        "edit": edit_file,
+        "grep": grep_content,
+        "glob": glob_files,
+        "ls": list_directory,
+        "delete": delete_file,
+        "mkdir": make_directory,
+    }
 
     while True:
         chat = client.chat.completions.create(
@@ -97,6 +145,119 @@ def main():
                                     "description": "The command to execute",
                                 }
                             },
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "edit",
+                        "description": "Replace an exact string in a file with a new string",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "file_path": {
+                                    "type": "string",
+                                    "description": "The path to the file to edit",
+                                },
+                                "old_string": {
+                                    "type": "string",
+                                    "description": "The exact text to replace",
+                                },
+                                "new_string": {
+                                    "type": "string",
+                                    "description": "The text to replace it with",
+                                },
+                            },
+                            "required": ["file_path", "old_string", "new_string"],
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "grep",
+                        "description": "Search file contents for a regex pattern, returning matches as path:line:text",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "pattern": {
+                                    "type": "string",
+                                    "description": "The regex pattern to search for",
+                                },
+                                "path": {
+                                    "type": "string",
+                                    "description": "The directory to search in (defaults to current directory)",
+                                },
+                            },
+                            "required": ["pattern"],
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "glob",
+                        "description": "Find files matching a glob pattern (e.g. **/*.py)",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "pattern": {
+                                    "type": "string",
+                                    "description": "The glob pattern to match files against",
+                                }
+                            },
+                            "required": ["pattern"],
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "ls",
+                        "description": "List the contents of a directory",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "description": "The directory to list (defaults to current directory)",
+                                }
+                            },
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "delete",
+                        "description": "Delete a file",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "file_path": {
+                                    "type": "string",
+                                    "description": "The path to the file to delete",
+                                }
+                            },
+                            "required": ["file_path"],
+                        },
+                    },
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "mkdir",
+                        "description": "Create a directory (including parent directories)",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "description": "The directory path to create",
+                                }
+                            },
+                            "required": ["path"],
                         },
                     },
                 },
